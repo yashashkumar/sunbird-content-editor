@@ -43,7 +43,7 @@ jobs:
         run: npm install -g bower@1.8.14 gulp@3.9.1
 
       - name: Clone sunbird-content-plugins
-        run: git clone https://github.com/sanketika-labs/sunbird-content-plugins.git plugins -b release-5.1.0
+        run: git clone https://github.com/sanketika-labs/sunbird-content-plugins.git plugins -b fmps-1.0.0
 
       - name: Clean npm cache and install dependencies
         run: |
