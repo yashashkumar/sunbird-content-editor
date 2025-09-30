@@ -4,6 +4,7 @@ var clean = require('gulp-clean');
 var concat = require('gulp-concat');
 var minify = require('gulp-minifier');
 var stripDebug = require('gulp-strip-debug');
+var gzip = require('gulp-gzip');
 var mainBowerFiles = require('gulp-main-bower-files');
 var gulpFilter = require('gulp-filter');
 var inject = require('gulp-inject');
@@ -233,6 +234,8 @@ gulp.task('minifyCSS', function () {
 
 gulp.task('minifyJsBower', function () {
     return gulp.src(bower_components)
+                    .pipe(gzip({ append: true }))
+                    .pipe(gulp.dest('content-editor/scripts'))
         .pipe(concat('external.min.js'))
         .pipe(minify({
             minify: true,
@@ -240,6 +243,8 @@ gulp.task('minifyJsBower', function () {
             conservativeCollapse: true,
             minifyJS: true
         }))
+                    .pipe(gzip({ append: true }))
+                    .pipe(gulp.dest('content-editor/scripts'))
         .pipe(terser())
         .pipe(rename(cachebust))
         .pipe(gulp.dest('content-editor/scripts/'));
@@ -247,6 +252,8 @@ gulp.task('minifyJsBower', function () {
 
 gulp.task('minifyCssBower', function () {
     return gulp.src(bower_css)
+                    .pipe(gzip({ append: true }))
+                    .pipe(gulp.dest('content-editor/scripts'))
         .pipe(concat('external.min.css'))
         .pipe(rename(cachebust))
         .pipe(gulp.dest('content-editor/styles'));
@@ -274,6 +281,8 @@ gulp.task('copyfontawesomefonts', function () {
 gulp.task('copyFiles', function () {
     return gulp.src(['app/templates/**/*', 'app/images/content-logo.png', 'app/images/geniecontrols.png', 'app/images/editor-frame.png', 'app/config/*.json', 'app/config/*.js', 'app/index.html'], {
         base: 'app/'
+                    .pipe(gzip({ append: true }))
+                    .pipe(gulp.dest('content-editor/styles'))
     })
         .pipe(gulp.dest('content-editor'));
 });
@@ -289,15 +298,19 @@ gulp.task('minify', ['minifyallJS', 'minifyBaseEditor', 'minifyCSS', 'minifyJsBo
 
 gulp.task('inject', ['minify'], function () {
     var target = gulp.src('content-editor/index.html');
-    var sources = gulp.src(['content-editor/scripts/*.js', '!content-editor/scripts/base-editor*.js', '!content-editor/scripts/plugin-framework.*.js', '!content-editor/scripts/coreplugins.js', 'content-editor/styles/*.css'], {
-        read: false
-    });
-    return target
-        .pipe(inject(sources, {
-            ignorePath: 'content-editor/',
-            addRootSlash: false
-        }))
-        .pipe(gulp.dest('./content-editor'));
+    var sources = gulp.src([
+        'content-editor/scripts/*.js',
+        '!content-editor/scripts/base-editor*.js',
+        '!content-editor/scripts/plugin-framework.*.js',
+        '!content-editor/scripts/coreplugins.js',
+        'content-editor/styles/*.css'
+    ], { read: false });
+    var injected = target.pipe(inject(sources, {
+        ignorePath: 'content-editor/',
+        addRootSlash: false
+    }));
+    injected.pipe(gulp.dest('./content-editor'));
+    return injected.pipe(gzip({ append: true })).pipe(gulp.dest('./content-editor'));
 });
 
 gulp.task('replace', ['inject'], function () {
