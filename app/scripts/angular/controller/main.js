@@ -275,8 +275,7 @@ angular.module('editorApp').controller('MainCtrl', ['$scope', '$timeout', '$http
 			};
 			$scope.menus =org.ekstep.contenteditor.toolbarManager.menuItems
 			.filter(function(item) {
-				// return item.id === "question-set" || item.id === "stage";
-				return item.id === "stage";
+				return item.id === "question-set";
 			})
 			.map(function(menu) {
 				var menuCopy = _.cloneDeep(menu);
