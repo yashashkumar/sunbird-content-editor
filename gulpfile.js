@@ -570,6 +570,70 @@ gulp.task('gzip-existing', function (done) {
     });
 });
 
+// Task to create .gz files for downloaded artifact (works with any directory structure)
+gulp.task('gzip-artifact', function (done) {
+    console.log('Creating individual .gz files for downloaded artifact...');
+    console.log('This task will compress all files in the current directory and subdirectories.');
+    
+    // Create .gz files for all files in current directory, excluding already compressed files
+    exec('find . -type f ! -name "*.gz" ! -name "*.zip" ! -name "*.tar*" ! -path "./.git/*" ! -path "./node_modules/*" -exec gzip -k {} \\;', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error creating individual .gz files:', error);
+            done(error);
+        } else {
+            console.log('Successfully created individual .gz files for all artifact files');
+            console.log('');
+            console.log('Files that were compressed:');
+            
+            // List all .gz files to show what was created
+            exec('find . -name "*.gz" -type f | sort', (listError, listStdout) => {
+                if (!listError) {
+                    console.log(listStdout);
+                    console.log('');
+                    console.log('Each original file now has a .gz version alongside it.');
+                }
+                done();
+            });
+        }
+    });
+});
+
+// Task to create .gz files for a specific directory (you specify the path)
+gulp.task('gzip-directory', function (done) {
+    var targetDir = process.env.TARGET_DIR || '.';
+    console.log('Creating individual .gz files for directory: ' + targetDir);
+    
+    // Check if target directory exists
+    exec('test -d "' + targetDir + '"', (testError) => {
+        if (testError) {
+            console.error('Error: Target directory does not exist: ' + targetDir);
+            console.log('Usage: TARGET_DIR="/path/to/your/directory" npx gulp gzip-directory');
+            done(new Error('Target directory not found'));
+            return;
+        }
+        
+        // Create .gz files for all files in target directory
+        exec('find "' + targetDir + '" -type f ! -name "*.gz" ! -name "*.zip" ! -name "*.tar*" -exec gzip -k {} \\;', (error, stdout, stderr) => {
+            if (error) {
+                console.error('Error creating individual .gz files:', error);
+                done(error);
+            } else {
+                console.log('Successfully created individual .gz files for all files in: ' + targetDir);
+                console.log('');
+                console.log('Files with .gz versions:');
+                
+                // List all files to show the results
+                exec('find "' + targetDir + '" -type f | sort', (listError, listStdout) => {
+                    if (!listError) {
+                        console.log(listStdout);
+                    }
+                    done();
+                });
+            }
+        });
+    });
+});
+
 // Standalone task to create both zip and tar.gz archives plus individual .gz files
 gulp.task('archive', ['minify', 'inject', 'replace', 'packageCorePlugins'], function (done) {
     var createZip = new Promise((resolve, reject) => {
