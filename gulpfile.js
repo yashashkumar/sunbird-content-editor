@@ -31,6 +31,7 @@ var cachebust = function (path) {
 
 //var cachebust = new CacheBuster();
 const zip = require('gulp-zip');
+const { exec } = require('child_process');
 
 
 var bower_components = [
@@ -313,7 +314,26 @@ gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins'], function
         .pipe(gulp.dest(''));
 });
 
-gulp.task('build', ['minify', 'inject', 'zip']);
+gulp.task('targz', ['minify', 'inject', 'replace', 'packageCorePlugins'], function (done) {
+    console.log('Creating content-editor.tar.gz with all generated and copied files...');
+    exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error creating tar.gz:', error);
+            done(error);
+        } else {
+            console.log('Successfully created content-editor.tar.gz containing:');
+            console.log('  - content-editor/scripts/ (minified JS files)');
+            console.log('  - content-editor/styles/ (minified CSS files, fonts, themes)');
+            console.log('  - content-editor/templates/ (HTML templates)');
+            console.log('  - content-editor/images/ (logos and assets)');
+            console.log('  - content-editor/config/ (configuration files)');
+            console.log('  - content-editor/index.html (main HTML file)');
+            done();
+        }
+    });
+});
+
+gulp.task('build', ['minify', 'inject', 'zip', 'targz']);
 
 //Minification for dev Start
 gulp.task('copyFilesDev', function () {
@@ -352,7 +372,26 @@ gulp.task('zipDev', ['minifyDev', 'injectDev'], function () {
         .pipe(gulp.dest(''));
 });
 
-gulp.task('buildDev', ['minifyDev', 'injectDev', 'zipDev', "cachebust"]);
+gulp.task('targzDev', ['minifyDev', 'injectDev'], function (done) {
+    console.log('Creating content-editor.tar.gz (dev build) with all files...');
+    exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error creating tar.gz:', error);
+            done(error);
+        } else {
+            console.log('Successfully created content-editor.tar.gz (dev build) containing:');
+            console.log('  - content-editor/scripts/ (unminified JS files + external libs)');
+            console.log('  - content-editor/styles/ (CSS files, fonts, themes)'); 
+            console.log('  - content-editor/templates/ (HTML templates)');
+            console.log('  - content-editor/images/ (logos and assets)');
+            console.log('  - content-editor/config/ (configuration files)');
+            console.log('  - content-editor/index.html (main HTML file)');
+            done();
+        }
+    });
+});
+
+gulp.task('buildDev', ['minifyDev', 'injectDev', 'zipDev', 'targzDev', "cachebust"]);
 
 var corePlugins = [
     "org.ekstep.colorpicker-1.0",
@@ -445,6 +484,54 @@ gulp.task("clone-plugins", function (done) {
         }
         done();
     });
+});
+
+// List all files in content-editor directory for verification
+gulp.task('list-content-files', function (done) {
+    exec('find content-editor -type f | sort', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error listing files:', error);
+            done(error);
+        } else {
+            console.log('Files in content-editor directory:');
+            console.log(stdout);
+            done();
+        }
+    });
+});
+
+// Standalone task to create both zip and tar.gz archives
+gulp.task('archive', ['minify', 'inject', 'replace', 'packageCorePlugins'], function (done) {
+    var createZip = new Promise((resolve, reject) => {
+        gulp.src('content-editor/**')
+            .pipe(zip('content-editor.zip'))
+            .pipe(gulp.dest(''))
+            .on('end', resolve)
+            .on('error', reject);
+    });
+    
+    var createTarGz = new Promise((resolve, reject) => {
+        console.log('Creating comprehensive tar.gz archive of all content-editor files...');
+        exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
+            if (error) {
+                console.error('Error creating tar.gz:', error);
+                reject(error);
+            } else {
+                console.log('Successfully created content-editor.tar.gz with ALL content-editor files');
+                resolve();
+            }
+        });
+    });
+    
+    Promise.all([createZip, createTarGz])
+        .then(() => {
+            console.log('Both ZIP and TAR.GZ archives created successfully!');
+            console.log('The .tar.gz file contains all files from the content-editor directory including:');
+            console.log('- Generated minified scripts and styles');
+            console.log('- Copied templates, images, fonts, and configuration files');
+            done();
+        })
+        .catch(done);
 });
 
 
