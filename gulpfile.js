@@ -1,3 +1,16 @@
+// Gzip all files in scripts, styles, and index.html after all minify/copy tasks
+gulp.task('gzipAll', ['minify', 'inject', 'replace', 'packageCorePlugins'], function () {
+    var gzipScripts = gulp.src('content-editor/scripts/*.*')
+        .pipe(gzip({ append: true }))
+        .pipe(gulp.dest('content-editor/scripts'));
+    var gzipStyles = gulp.src('content-editor/styles/*.*')
+        .pipe(gzip({ append: true }))
+        .pipe(gulp.dest('content-editor/styles'));
+    var gzipIndex = gulp.src('content-editor/index.html')
+        .pipe(gzip({ append: true }))
+        .pipe(gulp.dest('content-editor'));
+    return mergeStream(gzipScripts, gzipStyles, gzipIndex);
+});
 var gulp = require('gulp');
 var chug = require('gulp-chug');
 var clean = require('gulp-clean');
@@ -320,7 +333,7 @@ gulp.task('replace', ['inject'], function () {
     ]);
 });
 
-gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins'], function () {
+gulp.task('zip', ['gzipAll'], function () {
     return gulp.src('content-editor/**')
         .pipe(zip('content-editor.zip'))
         .pipe(gulp.dest(''));
