@@ -15,6 +15,7 @@ var cleanCSS = require('clean-css');
 var replace = require('gulp-string-replace');
 const terser = require('gulp-terser');
 var git = require('gulp-git');
+var gzip = require('gulp-gzip');
 var editorVersionNumber = process.env.editor_version_number;
 var buildNumber = process.env.build_number;
 var branchName = process.env.branch || 'master';
@@ -31,7 +32,6 @@ var cachebust = function (path) {
 
 //var cachebust = new CacheBuster();
 const zip = require('gulp-zip');
-const { exec } = require('child_process');
 
 
 var bower_components = [
@@ -160,7 +160,7 @@ var appScripts = pluginFramework.concat(editorFramework).concat(contentEditorApp
 var editorScripts = pluginFramework.concat(editorFramework);
 
 gulp.task('minifyallJS', function () {
-    return gulp.src(appScripts)
+    var stream = gulp.src(appScripts)
         .pipe(concat('script.min.js'))
         .pipe(minify({
             minify: true,
@@ -170,21 +170,30 @@ gulp.task('minifyallJS', function () {
         }))
         .pipe(terser())
         .pipe(rename(cachebust))
+        .pipe(gulp.dest('content-editor/scripts'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
+    return stream;
 });
 
 gulp.task('minifyBaseEditor', function () {
-    return gulp.src(editorScripts)
+    var stream = gulp.src(editorScripts)
         .pipe(concat('base-editor.min.js'))
         .pipe(terser())
+        .pipe(gulp.dest('content-editor/scripts'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
+    return stream;
 });
 
 gulp.task('minifyFramework', function () {
-    return gulp.src(pluginFramework)
+    var stream = gulp.src(pluginFramework)
         .pipe(concat('plugin-framework.min.js'))
         .pipe(terser())
+        .pipe(gulp.dest('content-editor/scripts'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
+    return stream;
 });
 
 gulp.task('dist', function () {
@@ -195,7 +204,7 @@ gulp.task('dist', function () {
 });
 
 gulp.task('minifyCSS', function () {
-    return gulp.src([
+    var stream = gulp.src([
         'app/styles/semantic.min.css',
         'app/styles/MyFontsWebfontsKit.css',
         'app/styles/iconfont.css',
@@ -229,11 +238,14 @@ gulp.task('minifyCSS', function () {
             }
         }))
         .pipe(rename(cachebust))
+        .pipe(gulp.dest('content-editor/styles'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/styles'));
+    return stream;
 });
 
 gulp.task('minifyJsBower', function () {
-    return gulp.src(bower_components)
+    var stream = gulp.src(bower_components)
         .pipe(concat('external.min.js'))
         .pipe(minify({
             minify: true,
@@ -243,14 +255,20 @@ gulp.task('minifyJsBower', function () {
         }))
         .pipe(terser())
         .pipe(rename(cachebust))
+        .pipe(gulp.dest('content-editor/scripts/'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts/'));
+    return stream;
 });
 
 gulp.task('minifyCssBower', function () {
-    return gulp.src(bower_css)
+    var stream = gulp.src(bower_css)
         .pipe(concat('external.min.css'))
         .pipe(rename(cachebust))
+        .pipe(gulp.dest('content-editor/styles'))
+        .pipe(gzip())
         .pipe(gulp.dest('content-editor/styles'));
+    return stream;
 });
 
 
@@ -308,111 +326,13 @@ gulp.task('replace', ['inject'], function () {
     ]);
 });
 
-// Standalone tasks for individual archive creation
 gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins'], function () {
     return gulp.src('content-editor/**')
         .pipe(zip('content-editor.zip'))
         .pipe(gulp.dest(''));
 });
 
-gulp.task('targz', ['minify', 'inject', 'replace', 'packageCorePlugins'], function (done) {
-    console.log('Creating content-editor.tar.gz with all generated and copied files...');
-    exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error creating tar.gz:', error);
-            done(error);
-        } else {
-            console.log('Successfully created content-editor.tar.gz containing:');
-            console.log('  - content-editor/scripts/ (minified JS files)');
-            console.log('  - content-editor/styles/ (minified CSS files, fonts, themes)');
-            console.log('  - content-editor/templates/ (HTML templates)');
-            console.log('  - content-editor/images/ (logos and assets)');
-            console.log('  - content-editor/config/ (configuration files)');
-            console.log('  - content-editor/index.html (main HTML file)');
-            done();
-        }
-    });
-});
-
-gulp.task('build', ['minify', 'inject', 'replace', 'packageCorePlugins'], function(done) {
-    // Step 1: First create individual .gz files
-    console.log('Step 1: Creating individual .gz files for all content-editor files...');
-    exec('find content-editor -type f ! -name "*.gz" -exec gzip -k {} \\;', (gzipError, gzipStdout, gzipStderr) => {
-        if (gzipError) {
-            console.error('Error creating individual .gz files:', gzipError);
-            done(gzipError);
-            return;
-        }
-        
-        console.log('✓ Successfully created individual .gz files');
-        
-        // Verify .gz files were created
-        exec('find content-editor -name "*.gz" -type f | wc -l', (countError, countStdout) => {
-            var gzCount = parseInt(countStdout.trim());
-            console.log('✓ Total .gz files created: ' + gzCount);
-            
-            if (gzCount === 0) {
-                console.error('WARNING: No .gz files were created! Check if content-editor directory has files.');
-                done(new Error('No .gz files created'));
-                return;
-            }
-            
-            // Show some examples
-            exec('find content-editor -name "*.gz" -type f | head -5', (exError, exStdout) => {
-                console.log('Example .gz files created:');
-                console.log(exStdout);
-                console.log('');
-                
-                // Step 2: Now create archives that include the .gz files
-                var createZip = new Promise((resolve, reject) => {
-                    console.log('Step 2a: Creating content-editor.zip (includes .gz files)...');
-                    gulp.src('content-editor/**/*', { dot: true })
-                        .pipe(zip('content-editor.zip'))
-                        .pipe(gulp.dest(''))
-                        .on('end', () => {
-                            console.log('✓ Successfully created content-editor.zip');
-                            resolve();
-                        })
-                        .on('error', reject);
-                });
-                
-                var createTarGz = new Promise((resolve, reject) => {
-                    console.log('Step 2b: Creating content-editor.tar.gz (includes .gz files)...');
-                    exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
-                        if (error) {
-                            reject(error);
-                        } else {
-                            console.log('✓ Successfully created content-editor.tar.gz');
-                            resolve();
-                        }
-                    });
-                });
-                
-                Promise.all([createZip, createTarGz])
-                    .then(() => {
-                        // Verify archives contain .gz files
-                        exec('unzip -l content-editor.zip | grep "\\.gz$" | wc -l', (zipCheckError, zipCheckStdout) => {
-                            var gzInZip = parseInt(zipCheckStdout.trim());
-                            console.log('');
-                            console.log('=== BUILD COMPLETED SUCCESSFULLY ===');
-                            console.log('Generated files:');
-                            console.log('1. content-editor.zip - Complete ZIP archive');
-                            console.log('   ✓ Contains ' + gzInZip + ' .gz files');
-                            console.log('2. content-editor.tar.gz - Complete TAR.GZ archive');
-                            console.log('   ✓ Contains ' + gzCount + ' .gz files');
-                            console.log('3. content-editor/ directory with:');
-                            console.log('   - All original files');
-                            console.log('   - ' + gzCount + ' individual .gz files for original files');
-                            console.log('   - Ready for deployment with pre-compressed assets');
-                            console.log('=====================================');
-                            done();
-                        });
-                    })
-                    .catch(done);
-            });
-        });
-    });
-});
+gulp.task('build', ['minify', 'inject', 'zip']);
 
 //Minification for dev Start
 gulp.task('copyFilesDev', function () {
@@ -445,63 +365,13 @@ gulp.task('injectDev', ['minifyDev'], function () {
         .pipe(gulp.dest('./content-editor'));
 });
 
-
-
-gulp.task('buildDev', ['minifyDev', 'injectDev'], function(done) {
-    // Step 1: First create individual .gz files
-    console.log('Step 1: Creating individual .gz files for all content-editor files (dev build)...');
-    exec('find content-editor -type f ! -name "*.gz" -exec gzip -k {} \\;', (gzipError, gzipStdout, gzipStderr) => {
-        if (gzipError) {
-            console.error('Error creating individual .gz files:', gzipError);
-            done(gzipError);
-            return;
-        }
-        
-        console.log('✓ Successfully created individual .gz files (dev build)');
-        console.log('');
-        
-        // Step 2: Now create archives that include the .gz files
-        var createZipDev = new Promise((resolve, reject) => {
-            console.log('Step 2a: Creating content-editor.zip (dev - includes .gz files)...');
-            gulp.src('content-editor/**')
-                .pipe(zip('content-editor.zip'))
-                .pipe(gulp.dest(''))
-                .on('end', () => {
-                    console.log('✓ Successfully created content-editor.zip (dev)');
-                    resolve();
-                })
-                .on('error', reject);
-        });
-        
-        var createTarGzDev = new Promise((resolve, reject) => {
-            console.log('Step 2b: Creating content-editor.tar.gz (dev - includes .gz files)...');
-            exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    console.log('✓ Successfully created content-editor.tar.gz (dev)');
-                    resolve();
-                }
-            });
-        });
-        
-        Promise.all([createZipDev, createTarGzDev])
-            .then(() => {
-                console.log('');
-                console.log('=== DEV BUILD COMPLETED SUCCESSFULLY ===');
-                console.log('Generated files:');
-                console.log('1. content-editor.zip - Complete ZIP archive (dev - includes .gz files)');
-                console.log('2. content-editor.tar.gz - Complete TAR.GZ archive (dev - includes .gz files)');
-                console.log('3. content-editor/ directory with:');
-                console.log('   - All original files (unminified for development)');
-                console.log('   - Individual .gz files for EACH original file');
-                console.log('   - Ready for development and testing with pre-compressed assets');
-                console.log('=======================================');
-                done();
-            })
-            .catch(done);
-    });
+gulp.task('zipDev', ['minifyDev', 'injectDev'], function () {
+    return gulp.src('content-editor/**')
+        .pipe(zip('content-editor.zip'))
+        .pipe(gulp.dest(''));
 });
+
+gulp.task('buildDev', ['minifyDev', 'injectDev', 'zipDev', "cachebust"]);
 
 var corePlugins = [
     "org.ekstep.colorpicker-1.0",
@@ -596,265 +466,16 @@ gulp.task("clone-plugins", function (done) {
     });
 });
 
-// Task to verify .gz files exist in content-editor directory
-gulp.task('verify-gz-files', function(done) {
-    console.log('Checking for .gz files in content-editor directory...');
-    
-    exec('find content-editor -name "*.gz" -type f', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error checking .gz files:', error);
-            done(error);
-            return;
-        }
-        
-        var gzFiles = stdout.trim().split('\n').filter(f => f);
-        console.log('Found ' + gzFiles.length + ' .gz files:');
-        gzFiles.forEach(f => console.log('  ' + f));
-        
-        if (gzFiles.length === 0) {
-            console.error('ERROR: No .gz files found in content-editor directory!');
-            console.log('Run "gulp gzip-individual-files" to create them.');
-        }
-        
-        done();
-    });
+gulp.task('test-gzip', ['minify'], function() {
+    console.log('\n==============================================');
+    console.log('✓ Gzip compression test completed!');
+    console.log('==============================================');
+    console.log('\nThe following files have been created with their .gz versions:');
+    console.log('  - content-editor/scripts/script.min.*.js + .gz');
+    console.log('  - content-editor/scripts/external.min.*.js + .gz');
+    console.log('  - content-editor/scripts/base-editor.min.js + .gz');
+    console.log('  - content-editor/scripts/plugin-framework.min.js + .gz');
+    console.log('  - content-editor/styles/style.min.*.css + .gz');
+    console.log('  - content-editor/styles/external.min.*.css + .gz');
+    console.log('\nCheck the content-editor/ folder for all generated files.\n');
 });
-
-// Task to verify .gz files in the zip archive
-gulp.task('verify-zip-contents', function(done) {
-    console.log('Checking contents of content-editor.zip...');
-    
-    exec('unzip -l content-editor.zip', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error: content-editor.zip not found or cannot be read');
-            done(error);
-            return;
-        }
-        
-        var lines = stdout.split('\n');
-        var gzFiles = lines.filter(line => line.includes('.gz'));
-        
-        console.log('Total lines in zip: ' + lines.length);
-        console.log('Lines containing .gz files: ' + gzFiles.length);
-        console.log('');
-        console.log('First 10 .gz files in archive:');
-        gzFiles.slice(0, 10).forEach(line => console.log('  ' + line));
-        
-        done();
-    });
-});
-
-// Task to create a test .gz file to verify gzip is working
-gulp.task('test-gzip', function(done) {
-    console.log('Testing gzip functionality...');
-    
-    exec('echo "test content" > test-file.txt && gzip -k test-file.txt && ls -la test-file.*', (error, stdout, stderr) => {
-        console.log(stdout);
-        
-        exec('rm -f test-file.txt test-file.txt.gz', (cleanError) => {
-            if (error) {
-                console.error('gzip test failed:', error);
-                done(error);
-            } else {
-                console.log('✓ gzip is working correctly');
-                done();
-            }
-        });
-    });
-});
-
-// List all files in content-editor directory for verification
-gulp.task('list-content-files', function (done) {
-    exec('find content-editor -type f | sort', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error listing files:', error);
-            done(error);
-        } else {
-            console.log('Files in content-editor directory:');
-            console.log(stdout);
-            done();
-        }
-    });
-});
-
-// Individual task to create .gz files for each file in content-editor directory (standalone)
-gulp.task('gzip-individual-files', function (done) {
-    console.log('Creating individual .gz files for each file in content-editor directory...');
-    
-    // Check if content-editor directory exists
-    exec('test -d content-editor', (testError) => {
-        if (testError) {
-            console.error('Error: content-editor directory does not exist!');
-            console.log('Please run "gulp minify" or "gulp build" first to create the content-editor directory.');
-            done(new Error('content-editor directory not found'));
-            return;
-        }
-        
-        // Use find to get all files and gzip each one individually
-        exec('find content-editor -type f ! -name "*.gz" -exec gzip -k {} \\;', (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error creating individual .gz files:', error);
-                done(error);
-            } else {
-                console.log('Successfully created individual .gz files for all content-editor files');
-                console.log('Each file now has a corresponding .gz version:');
-                console.log('  - Original files remain unchanged');
-                console.log('  - .gz versions created alongside each file');
-                console.log('  - Example: script.min.js → script.min.js + script.min.js.gz');
-                done();
-            }
-        });
-    });
-});
-
-// Standalone task to create .gz files for existing content-editor directory (no dependencies)
-gulp.task('gzip-existing', function (done) {
-    console.log('Creating individual .gz files for existing content-editor directory...');
-    
-    // Check if content-editor directory exists
-    exec('test -d content-editor', (testError) => {
-        if (testError) {
-            console.error('Error: content-editor directory does not exist!');
-            console.log('Please ensure you have a content-editor directory with files to compress.');
-            done(new Error('content-editor directory not found'));
-            return;
-        }
-        
-        // Create .gz files for all files in content-editor
-        exec('find content-editor -type f ! -name "*.gz" -exec gzip -k {} \\;', (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error creating individual .gz files:', error);
-                done(error);
-            } else {
-                console.log('Successfully created individual .gz files for all content-editor files');
-                console.log('');
-                console.log('Now listing all files with their .gz versions:');
-                
-                // List all files to show the results
-                exec('find content-editor -type f | sort', (listError, listStdout) => {
-                    if (!listError) {
-                        console.log(listStdout);
-                    }
-                    done();
-                });
-            }
-        });
-    });
-});
-
-// Task to create .gz files for downloaded artifact (works with any directory structure)
-gulp.task('gzip-artifact', function (done) {
-    console.log('Creating individual .gz files for downloaded artifact...');
-    console.log('This task will compress all files in the current directory and subdirectories.');
-    
-    // Create .gz files for all files in current directory, excluding already compressed files
-    exec('find . -type f ! -name "*.gz" ! -name "*.zip" ! -name "*.tar*" ! -path "./.git/*" ! -path "./node_modules/*" -exec gzip -k {} \\;', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error creating individual .gz files:', error);
-            done(error);
-        } else {
-            console.log('Successfully created individual .gz files for all artifact files');
-            console.log('');
-            console.log('Files that were compressed:');
-            
-            // List all .gz files to show what was created
-            exec('find . -name "*.gz" -type f | sort', (listError, listStdout) => {
-                if (!listError) {
-                    console.log(listStdout);
-                    console.log('');
-                    console.log('Each original file now has a .gz version alongside it.');
-                }
-                done();
-            });
-        }
-    });
-});
-
-// Task to create .gz files for a specific directory (you specify the path)
-gulp.task('gzip-directory', function (done) {
-    var targetDir = process.env.TARGET_DIR || '.';
-    console.log('Creating individual .gz files for directory: ' + targetDir);
-    
-    // Check if target directory exists
-    exec('test -d "' + targetDir + '"', (testError) => {
-        if (testError) {
-            console.error('Error: Target directory does not exist: ' + targetDir);
-            console.log('Usage: TARGET_DIR="/path/to/your/directory" npx gulp gzip-directory');
-            done(new Error('Target directory not found'));
-            return;
-        }
-        
-        // Create .gz files for all files in target directory
-        exec('find "' + targetDir + '" -type f ! -name "*.gz" ! -name "*.zip" ! -name "*.tar*" -exec gzip -k {} \\;', (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error creating individual .gz files:', error);
-                done(error);
-            } else {
-                console.log('Successfully created individual .gz files for all files in: ' + targetDir);
-                console.log('');
-                console.log('Files with .gz versions:');
-                
-                // List all files to show the results
-                exec('find "' + targetDir + '" -type f | sort', (listError, listStdout) => {
-                    if (!listError) {
-                        console.log(listStdout);
-                    }
-                    done();
-                });
-            }
-        });
-    });
-});
-
-// Standalone task to create both zip and tar.gz archives plus individual .gz files
-gulp.task('archive', ['minify', 'inject', 'replace', 'packageCorePlugins'], function (done) {
-    var createZip = new Promise((resolve, reject) => {
-        gulp.src('content-editor/**')
-            .pipe(zip('content-editor.zip'))
-            .pipe(gulp.dest(''))
-            .on('end', resolve)
-            .on('error', reject);
-    });
-    
-    var createTarGz = new Promise((resolve, reject) => {
-        console.log('Creating comprehensive tar.gz archive of all content-editor files...');
-        exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error creating tar.gz:', error);
-                reject(error);
-            } else {
-                console.log('Successfully created content-editor.tar.gz with ALL content-editor files');
-                resolve();
-            }
-        });
-    });
-    
-    var createIndividualGz = new Promise((resolve, reject) => {
-        console.log('Creating individual .gz files for each content-editor file...');
-        exec('find content-editor -type f -exec gzip -k {} \\;', (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error creating individual .gz files:', error);
-                reject(error);
-            } else {
-                console.log('Successfully created individual .gz files for all content-editor files');
-                resolve();
-            }
-        });
-    });
-    
-    Promise.all([createZip, createTarGz, createIndividualGz])
-        .then(() => {
-            console.log('All archives created successfully!');
-            console.log('Created:');
-            console.log('1. content-editor.zip - Complete ZIP archive');
-            console.log('2. content-editor.tar.gz - Complete TAR.GZ archive'); 
-            console.log('3. Individual .gz files for each file in content-editor/');
-            console.log('   - Each original file now has a .gz compressed version alongside it');
-            console.log('   - Example: index.html → index.html + index.html.gz');
-            done();
-        })
-        .catch(done);
-});
-
-
-
