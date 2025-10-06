@@ -345,48 +345,72 @@ gulp.task('build', ['minify', 'inject', 'replace', 'packageCorePlugins'], functi
         }
         
         console.log('✓ Successfully created individual .gz files');
-        console.log('');
         
-        // Step 2: Now create archives that include the .gz files
-        var createZip = new Promise((resolve, reject) => {
-            console.log('Step 2a: Creating content-editor.zip (includes .gz files)...');
-            gulp.src('content-editor/**')
-                .pipe(zip('content-editor.zip'))
-                .pipe(gulp.dest(''))
-                .on('end', () => {
-                    console.log('✓ Successfully created content-editor.zip');
-                    resolve();
-                })
-                .on('error', reject);
-        });
-        
-        var createTarGz = new Promise((resolve, reject) => {
-            console.log('Step 2b: Creating content-editor.tar.gz (includes .gz files)...');
-            exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    console.log('✓ Successfully created content-editor.tar.gz');
-                    resolve();
-                }
+        // Verify .gz files were created
+        exec('find content-editor -name "*.gz" -type f | wc -l', (countError, countStdout) => {
+            var gzCount = parseInt(countStdout.trim());
+            console.log('✓ Total .gz files created: ' + gzCount);
+            
+            if (gzCount === 0) {
+                console.error('WARNING: No .gz files were created! Check if content-editor directory has files.');
+                done(new Error('No .gz files created'));
+                return;
+            }
+            
+            // Show some examples
+            exec('find content-editor -name "*.gz" -type f | head -5', (exError, exStdout) => {
+                console.log('Example .gz files created:');
+                console.log(exStdout);
+                console.log('');
+                
+                // Step 2: Now create archives that include the .gz files
+                var createZip = new Promise((resolve, reject) => {
+                    console.log('Step 2a: Creating content-editor.zip (includes .gz files)...');
+                    gulp.src('content-editor/**/*', { dot: true })
+                        .pipe(zip('content-editor.zip'))
+                        .pipe(gulp.dest(''))
+                        .on('end', () => {
+                            console.log('✓ Successfully created content-editor.zip');
+                            resolve();
+                        })
+                        .on('error', reject);
+                });
+                
+                var createTarGz = new Promise((resolve, reject) => {
+                    console.log('Step 2b: Creating content-editor.tar.gz (includes .gz files)...');
+                    exec('tar -czf content-editor.tar.gz content-editor', (error, stdout, stderr) => {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            console.log('✓ Successfully created content-editor.tar.gz');
+                            resolve();
+                        }
+                    });
+                });
+                
+                Promise.all([createZip, createTarGz])
+                    .then(() => {
+                        // Verify archives contain .gz files
+                        exec('unzip -l content-editor.zip | grep "\\.gz$" | wc -l', (zipCheckError, zipCheckStdout) => {
+                            var gzInZip = parseInt(zipCheckStdout.trim());
+                            console.log('');
+                            console.log('=== BUILD COMPLETED SUCCESSFULLY ===');
+                            console.log('Generated files:');
+                            console.log('1. content-editor.zip - Complete ZIP archive');
+                            console.log('   ✓ Contains ' + gzInZip + ' .gz files');
+                            console.log('2. content-editor.tar.gz - Complete TAR.GZ archive');
+                            console.log('   ✓ Contains ' + gzCount + ' .gz files');
+                            console.log('3. content-editor/ directory with:');
+                            console.log('   - All original files');
+                            console.log('   - ' + gzCount + ' individual .gz files for original files');
+                            console.log('   - Ready for deployment with pre-compressed assets');
+                            console.log('=====================================');
+                            done();
+                        });
+                    })
+                    .catch(done);
             });
         });
-        
-        Promise.all([createZip, createTarGz])
-            .then(() => {
-                console.log('');
-                console.log('=== BUILD COMPLETED SUCCESSFULLY ===');
-                console.log('Generated files:');
-                console.log('1. content-editor.zip - Complete ZIP archive (includes .gz files)');
-                console.log('2. content-editor.tar.gz - Complete TAR.GZ archive (includes .gz files)');
-                console.log('3. content-editor/ directory with:');
-                console.log('   - All original files');
-                console.log('   - Individual .gz files for EACH original file');
-                console.log('   - Ready for deployment with pre-compressed assets');
-                console.log('=====================================');
-                done();
-            })
-            .catch(done);
     });
 });
 
@@ -569,6 +593,73 @@ gulp.task("clone-plugins", function (done) {
             done(err);
         }
         done();
+    });
+});
+
+// Task to verify .gz files exist in content-editor directory
+gulp.task('verify-gz-files', function(done) {
+    console.log('Checking for .gz files in content-editor directory...');
+    
+    exec('find content-editor -name "*.gz" -type f', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error checking .gz files:', error);
+            done(error);
+            return;
+        }
+        
+        var gzFiles = stdout.trim().split('\n').filter(f => f);
+        console.log('Found ' + gzFiles.length + ' .gz files:');
+        gzFiles.forEach(f => console.log('  ' + f));
+        
+        if (gzFiles.length === 0) {
+            console.error('ERROR: No .gz files found in content-editor directory!');
+            console.log('Run "gulp gzip-individual-files" to create them.');
+        }
+        
+        done();
+    });
+});
+
+// Task to verify .gz files in the zip archive
+gulp.task('verify-zip-contents', function(done) {
+    console.log('Checking contents of content-editor.zip...');
+    
+    exec('unzip -l content-editor.zip', (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error: content-editor.zip not found or cannot be read');
+            done(error);
+            return;
+        }
+        
+        var lines = stdout.split('\n');
+        var gzFiles = lines.filter(line => line.includes('.gz'));
+        
+        console.log('Total lines in zip: ' + lines.length);
+        console.log('Lines containing .gz files: ' + gzFiles.length);
+        console.log('');
+        console.log('First 10 .gz files in archive:');
+        gzFiles.slice(0, 10).forEach(line => console.log('  ' + line));
+        
+        done();
+    });
+});
+
+// Task to create a test .gz file to verify gzip is working
+gulp.task('test-gzip', function(done) {
+    console.log('Testing gzip functionality...');
+    
+    exec('echo "test content" > test-file.txt && gzip -k test-file.txt && ls -la test-file.*', (error, stdout, stderr) => {
+        console.log(stdout);
+        
+        exec('rm -f test-file.txt test-file.txt.gz', (cleanError) => {
+            if (error) {
+                console.error('gzip test failed:', error);
+                done(error);
+            } else {
+                console.log('✓ gzip is working correctly');
+                done();
+            }
+        });
     });
 });
 
