@@ -467,24 +467,12 @@ gulp.task("clone-plugins", function (done) {
 });
 
 gulp.task('gzip-all-files', ['minify'], function() {
+    console.log('Creating .gz files for ALL files in content-editor folder...');
     return gulp.src([
-        'content-editor/**/*.{js,css,html,json,svg,xml,txt}',
-        '!content-editor/**/*.gz'  // Exclude already gzipped files
-    ])
+        'content-editor/**/*',           // ALL files and folders
+        '!content-editor/**/*.gz',       // Exclude already gzipped files
+        '!content-editor/**/node_modules/**'  // Exclude node_modules if any
+    ], { nodir: true })  // Only files, not directories
     .pipe(gzip())
     .pipe(gulp.dest('content-editor'));
-});
-
-gulp.task('test-gzip', ['minify'], function() {
-    console.log('\n==============================================');
-    console.log('✓ Gzip compression test completed!');
-    console.log('==============================================');
-    console.log('\nThe following files have been created with their .gz versions:');
-    console.log('  - content-editor/scripts/script.min.*.js + .gz');
-    console.log('  - content-editor/scripts/external.min.*.js + .gz');
-    console.log('  - content-editor/scripts/base-editor.min.js + .gz');
-    console.log('  - content-editor/scripts/plugin-framework.min.js + .gz');
-    console.log('  - content-editor/styles/style.min.*.css + .gz');
-    console.log('  - content-editor/styles/external.min.*.css + .gz');
-    console.log('\nCheck the content-editor/ folder for all generated files.\n');
 });
