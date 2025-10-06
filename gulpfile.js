@@ -326,7 +326,7 @@ gulp.task('replace', ['inject'], function () {
     ]);
 });
 
-gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins'], function () {
+gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins', 'gzip-all-files'], function () {
     return gulp.src('content-editor/**')
         .pipe(zip('content-editor.zip'))
         .pipe(gulp.dest(''));
@@ -464,6 +464,15 @@ gulp.task("clone-plugins", function (done) {
         }
         done();
     });
+});
+
+gulp.task('gzip-all-files', ['minify'], function() {
+    return gulp.src([
+        'content-editor/**/*.{js,css,html,json,svg,xml,txt}',
+        '!content-editor/**/*.gz'  // Exclude already gzipped files
+    ])
+    .pipe(gzip())
+    .pipe(gulp.dest('content-editor'));
 });
 
 gulp.task('test-gzip', ['minify'], function() {
