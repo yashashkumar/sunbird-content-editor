@@ -15,7 +15,6 @@ var cleanCSS = require('clean-css');
 var replace = require('gulp-string-replace');
 const terser = require('gulp-terser');
 var git = require('gulp-git');
-var gzip = require('gulp-gzip');
 var editorVersionNumber = process.env.editor_version_number;
 var buildNumber = process.env.build_number;
 var branchName = process.env.branch || 'master';
@@ -160,7 +159,7 @@ var appScripts = pluginFramework.concat(editorFramework).concat(contentEditorApp
 var editorScripts = pluginFramework.concat(editorFramework);
 
 gulp.task('minifyallJS', function () {
-    var stream = gulp.src(appScripts)
+    return gulp.src(appScripts)
         .pipe(concat('script.min.js'))
         .pipe(minify({
             minify: true,
@@ -170,30 +169,21 @@ gulp.task('minifyallJS', function () {
         }))
         .pipe(terser())
         .pipe(rename(cachebust))
-        .pipe(gulp.dest('content-editor/scripts'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
-    return stream;
 });
 
 gulp.task('minifyBaseEditor', function () {
-    var stream = gulp.src(editorScripts)
+    return gulp.src(editorScripts)
         .pipe(concat('base-editor.min.js'))
         .pipe(terser())
-        .pipe(gulp.dest('content-editor/scripts'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
-    return stream;
 });
 
 gulp.task('minifyFramework', function () {
-    var stream = gulp.src(pluginFramework)
+    return gulp.src(pluginFramework)
         .pipe(concat('plugin-framework.min.js'))
         .pipe(terser())
-        .pipe(gulp.dest('content-editor/scripts'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts'));
-    return stream;
 });
 
 gulp.task('dist', function () {
@@ -204,7 +194,7 @@ gulp.task('dist', function () {
 });
 
 gulp.task('minifyCSS', function () {
-    var stream = gulp.src([
+    return gulp.src([
         'app/styles/semantic.min.css',
         'app/styles/MyFontsWebfontsKit.css',
         'app/styles/iconfont.css',
@@ -238,14 +228,11 @@ gulp.task('minifyCSS', function () {
             }
         }))
         .pipe(rename(cachebust))
-        .pipe(gulp.dest('content-editor/styles'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/styles'));
-    return stream;
 });
 
 gulp.task('minifyJsBower', function () {
-    var stream = gulp.src(bower_components)
+    return gulp.src(bower_components)
         .pipe(concat('external.min.js'))
         .pipe(minify({
             minify: true,
@@ -255,20 +242,14 @@ gulp.task('minifyJsBower', function () {
         }))
         .pipe(terser())
         .pipe(rename(cachebust))
-        .pipe(gulp.dest('content-editor/scripts/'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/scripts/'));
-    return stream;
 });
 
 gulp.task('minifyCssBower', function () {
-    var stream = gulp.src(bower_css)
+    return gulp.src(bower_css)
         .pipe(concat('external.min.css'))
         .pipe(rename(cachebust))
-        .pipe(gulp.dest('content-editor/styles'))
-        .pipe(gzip())
         .pipe(gulp.dest('content-editor/styles'));
-    return stream;
 });
 
 
@@ -326,7 +307,7 @@ gulp.task('replace', ['inject'], function () {
     ]);
 });
 
-gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins', 'gzip-all-files'], function () {
+gulp.task('zip', ['minify', 'inject', 'replace', 'packageCorePlugins'], function () {
     return gulp.src('content-editor/**')
         .pipe(zip('content-editor.zip'))
         .pipe(gulp.dest(''));
@@ -464,15 +445,4 @@ gulp.task("clone-plugins", function (done) {
         }
         done();
     });
-});
-
-gulp.task('gzip-all-files', ['minify'], function() {
-    console.log('Creating .gz files for ALL files in content-editor folder...');
-    return gulp.src([
-        'content-editor/**/*',           // ALL files and folders
-        '!content-editor/**/*.gz',       // Exclude already gzipped files
-        '!content-editor/**/node_modules/**'  // Exclude node_modules if any
-    ], { nodir: true })  // Only files, not directories
-    .pipe(gzip())
-    .pipe(gulp.dest('content-editor'));
 });
